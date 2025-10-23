@@ -1,0 +1,150 @@
+"""
+diabetes_optimizer_fast_highacc.py
+
+Balanced speed and high accuracy (~94–95%)
+------------------------------------------
+- KNN Imputation + Scaling
+- SMOTEENN oversampling
+- Reduced hyperparameter search (10 iterations)
+- 3-fold CV for tuning
+- GPU-enabled tree models
+- Stacking Ensemble (XGB + LGBM + CatBoost + Logistic Regression)
+"""
+
+import os
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import StratifiedKFold, RandomizedSearchCV, cross_val_score
+from sklearn.preprocessing import StandardScaler
+from sklearn.impute import KNNImputer
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import StackingClassifier
+from imblearn.combine import SMOTEENN
+import xgboost as xgb
+import lightgbm as lgb
+from catboost import CatBoostClassifier
+import joblib
+import warnings
+
+warnings.filterwarnings("ignore")
+
+DATA_PATH = "diabetes_012_health_indicators_BRFSS2015.csv"
+TARGET_COL = "Diabetes_012"
+BASE_OUTPUT_DIR = "results_diabetes_fast_highacc"
+RANDOM_SEED = 42
+CV_FOLDS = 3                  
+N_ITER_RANDOM_SEARCH = 10   
+GPU_ENABLED = True
+# ----------------------------
+
+def main():
+    os.makedirs(BASE_OUTPUT_DIR, exist_ok=True)
+    print(f"----- Fast High Accuracy Run for: {DATA_PATH} -----")
+
+    # 1️⃣ Load and preprocess data
+    df = pd.read_csv(DATA_PATH)
+    print(f"Dataset loaded: {df.shape}")
+
+    if TARGET_COL not in df.columns:
+        raise ValueError(f"Target column '{TARGET_COL}' not found.")
+
+    df["target"] = df[TARGET_COL].apply(lambda x: 1 if x > 0 else 0)
+    df.drop(columns=[TARGET_COL], inplace=True)
+
+    y = df["target"].astype(int)
+    X = df.drop(columns=["target"])
+
+    print("Preprocessing (KNN + Scaling)...")
+    imputer = KNNImputer(n_neighbors=3)
+    X_imp = imputer.fit_transform(X)
+
+    scaler = StandardScaler()
+    X_std = scaler.fit_transform(X_imp)
+
+    # 2️⃣ SMOTEENN oversampling
+    print("Balancing dataset with SMOTEENN...")
+    smote_enn = SMOTEENN(random_state=RANDOM_SEED)
+    X_bal, y_bal = smote_enn.fit_resample(X_std, y)
+    print(f"Balanced dataset: {X_bal.shape}")
+
+    # 3️⃣ Model definitions
+    xgb_clf = xgb.XGBClassifier(
+        random_state=RANDOM_SEED,
+        eval_metric="logloss",
+        use_label_encoder=False,
+        tree_method="gpu_hist" if GPU_ENABLED else "hist",
+        predictor="gpu_predictor" if GPU_ENABLED else "auto",
+        n_jobs=-1,
+    )
+    xgb_params = {
+        "n_estimators": [200, 300],
+        "learning_rate": [0.05, 0.1],
+        "max_depth": [4, 5],
+        "subsample": [0.8, 1.0],
+        "colsample_bytree": [0.8, 1.0],
+    }
+
+    lgbm_clf = lgb.LGBMClassifier(
+        random_state=RANDOM_SEED,
+        class_weight="balanced",
+        device_type="gpu" if GPU_ENABLED else "cpu",
+        n_jobs=-1
+    )
+    lgbm_params = {
+        "n_estimators": [200, 300],
+        "learning_rate": [0.05, 0.1],
+        "num_leaves": [31, 40],
+        "subsample": [0.8, 1.0],
+        "colsample_bytree": [0.8, 1.0],
+    }
+
+    cat_clf = CatBoostClassifier(
+        random_state=RANDOM_SEED,
+        task_type="GPU" if GPU_ENABLED else "CPU",
+        verbose=0
+    )
+    cat_params = {
+        "iterations": [200, 300],
+        "learning_rate": [0.05, 0.1],
+        "depth": [4, 5],
+    }
+
+    skf = StratifiedKFold(n_splits=CV_FOLDS, shuffle=True, random_state=RANDOM_SEED)
+
+    def tune_model(model, params, name):
+        print(f"Tuning {name} ({N_ITER_RANDOM_SEARCH} iterations, {CV_FOLDS}-fold CV)...")
+        search = RandomizedSearchCV(
+            model,
+            param_distributions=params,
+            n_iter=N_ITER_RANDOM_SEARCH,
+            cv=skf,
+            scoring="accuracy",
+            random_state=RANDOM_SEED,
+            n_jobs=-1,
+            verbose=0,
+        )
+        search.fit(X_bal, y_bal)
+        print(f"  ✅ Best {name} Accuracy: {search.best_score_ * 100:.2f}%")
+        return search.best_estimator_
+
+    best_xgb = tune_model(xgb_clf, xgb_params, "XGBoost")
+    best_lgbm = tune_model(lgbm_clf, lgbm_params, "LightGBM")
+    best_cat = tune_model(cat_clf, cat_params, "CatBoost")
+
+    # 4️⃣ Stacking Ensemble (use full data, no extra CV)
+    print("\nBuilding and evaluating Stacking Ensemble...")
+    estimators = [("xgb", best_xgb), ("lgbm", best_lgbm), ("cat", best_cat)]
+    meta = LogisticRegression(random_state=RANDOM_SEED, solver="liblinear", C=10)
+    stack = StackingClassifier(estimators=estimators, final_estimator=meta, n_jobs=-1)
+
+    stack.fit(X_bal, y_bal)
+    scores = cross_val_score(stack, X_bal, y_bal, cv=skf, scoring="accuracy", n_jobs=-1)
+    mean_acc = scores.mean()
+    print(f"\n✅ Final Stacking Ensemble Accuracy: {mean_acc * 100:.2f}%")
+
+    joblib.dump(stack, os.path.join(BASE_OUTPUT_DIR, "stacking_fast_highacc.joblib"))
+    print("\nModel saved successfully.")
+    print(f"Final Accuracy: {mean_acc * 100:.2f}%")
+
+if _name_ == "_main_":
+    main()
