@@ -1,3 +1,97 @@
-Predictive model and risk analysis for outcomes in diabetic foot
-ulcer using eXtreme Gradient Boosting algorithm and SHapley
-Additive exPlanation
+Predictive Model and Risk Analysis for Outcomes in Diabetic Foot
+• Machine Learning Mini Project
+
+Team Members:
+
+Aayush More (Roll No: 16014223104)
+
+Priyansh Pancholi (Roll No: 16014223109)
+Course: B.Tech in Artificial Intelligence & Data Science
+Subject: Machine Learning (TY-B2)
+
+•Project Overview
+
+This project presents a machine learning–based predictive model designed to estimate the risk of diabetes using health indicators. Inspired by the IEEE paper “Predictive Model and Risk Analysis for Outcomes in Diabetic Foot Ulcer using XGBoost and SHAP”, it employs ensemble learning through XGBoost, LightGBM, and CatBoost models, stacked with Logistic Regression for final decision-making.
+
+The system aims to assist in clinical decision-making by offering fast, accurate, and interpretable diabetes risk predictions.
+
+• Aim
+
+To develop and evaluate a predictive model that estimates diabetes risk using clinical and lifestyle indicators, integrating ensemble learning and risk analysis to improve prediction accuracy and interpretability.
+
+• Key Features
+
+Uses a hybrid SMOTEENN technique to balance the dataset through oversampling and noise reduction.
+
+Implements XGBoost, LightGBM, and CatBoost within a stacking ensemble for robust prediction.
+
+Optimizes model parameters using RandomizedSearchCV with cross-validation.
+
+Utilizes GPU acceleration for faster computation.
+
+Achieves approximately 95% accuracy with balanced and optimized data.
+
+• Dataset
+
+The project uses the Diabetes Health Indicators Dataset from Kaggle, which contains around 250,000 samples collected from the U.S. CDC Behavioral Risk Factor Surveillance System (BRFSS 2015).
+
+Each record includes 21 health indicators such as BMI, age, physical activity, cholesterol level, smoking status, alcohol consumption, and blood pressure.
+The target variable Diabetes_012 was converted into a binary format where values greater than 0 represent diabetic cases (1), and 0 represents non-diabetic cases (0).
+
+Dataset Link: Kaggle – Diabetes Health Indicators
+
+• Methodology
+
+Data Cleaning: Missing values were handled using the KNN Imputation technique.
+
+Feature Scaling: StandardScaler was applied to normalize all numerical features.
+
+Data Balancing: The SMOTEENN algorithm was used to handle class imbalance effectively.
+
+Model Training: XGBoost, LightGBM, and CatBoost models were trained independently.
+
+Stacking Ensemble: Logistic Regression was used as the meta-classifier to combine model outputs.
+
+Evaluation: The final model performance was evaluated using 3-fold cross-validation.
+
+Model Saving: The trained stacking ensemble was saved for reuse using Joblib.
+
+• Implementation
+
+The complete workflow is implemented in the file diabetes_optimizer_fast_highacc.py.
+
+It includes:
+
+KNN-based data imputation and feature scaling
+
+SMOTEENN oversampling and data cleaning
+
+GPU-enabled training for XGBoost, LightGBM, and CatBoost
+
+Randomized hyperparameter optimization
+
+Ensemble stacking for final prediction
+
+The final trained ensemble achieved around 95% accuracy, showing better generalization and reduced overfitting compared to individual models.
+
+• Conclusion
+
+The project successfully demonstrates a fast and high-accuracy predictive model for diabetes classification. It combines feature importance–driven boosting methods and cost-sensitive learning principles to achieve near state-of-the-art performance on a large public dataset.
+
+The ensemble approach ensures robust predictions while reducing bias caused by data imbalance, making it a valuable step toward intelligent healthcare decision systems.
+
+• Future Work
+
+Integrate SHAP values to enhance model interpretability.
+
+Deploy the trained model using Flask or Streamlit for real-world accessibility.
+
+Expand the dataset with clinical measurements for better precision.
+
+Explore IoT-based health monitoring integration for continuous risk assessment.
+
+• Reference Paper
+
+Title: Predictive Model and Risk Analysis for Outcomes in Diabetic Foot Ulcer using eXtreme Gradient Boosting Algorithm and SHapley Additive exPlanation
+Authors: Lei Gao, Zi-Xuan Liu, Jiang-Ning Wang
+Link: Read Full Paper (PMC)
